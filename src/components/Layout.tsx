@@ -1,6 +1,7 @@
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import { useStore } from "../data/store";
 import { TESTNET } from "../data/config";
+import { version } from "../../package.json";
 import { shortAddress } from "../domain/hash";
 import type { Role } from "../domain/types";
 import { Button, EmptyState, Icon } from "./ui";
@@ -169,7 +170,7 @@ function Sidebar() {
         )}
         <span className="flex justify-between border-t border-surface-variant/50 pt-space-xs">
           <span>Open-source prototype</span>
-          <span className="tabular text-secondary">v0.1.0</span>
+          <span className="tabular text-secondary">v{version}</span>
         </span>
       </div>
     </aside>
