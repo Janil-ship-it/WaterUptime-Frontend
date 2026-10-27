@@ -1,0 +1,135 @@
+@import "tailwindcss";
+
+/* Design tokens ported from the WaterUptime dashboard template. */
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+
+  --color-surface: #0e141c;
+  --color-surface-dim: #0e141c;
+  --color-surface-bright: #343a43;
+  --color-surface-variant: #2f353e;
+  --color-surface-container-lowest: #080f17;
+  --color-surface-container-low: #161c25;
+  --color-surface-container: #1a2029;
+  --color-surface-container-high: #242a33;
+  --color-surface-container-highest: #2f353e;
+  --color-on-surface: #dde3ef;
+  --color-on-surface-variant: #bbc9ca;
+  --color-outline: #869394;
+  --color-outline-variant: #3c494a;
+
+  --color-primary: #55d8e1;
+  --color-on-primary: #003739;
+  --color-primary-container: #00adb5;
+  --color-on-primary-container: #003a3d;
+  --color-primary-fixed: #75f5fd;
+
+  --color-secondary: #7dd4d9;
+  --color-on-secondary: #003739;
+  --color-secondary-container: #01777b;
+  --color-on-secondary-container: #a6faff;
+
+  --color-tertiary: #b2cbcb;
+
+  --color-error: #ffb4ab;
+  --color-on-error: #690005;
+  --color-error-container: #93000a;
+  --color-on-error-container: #ffdad6;
+
+  --color-warning: #fbbf24;
+
+  --radius-sm: 0.125rem;
+  --radius-lg: 0.25rem;
+  --radius-xl: 0.5rem;
+
+  --spacing-space-xxs: 0.125rem;
+  --spacing-space-xs: 0.25rem;
+  --spacing-space-sm: 0.5rem;
+  --spacing-space-md: 1rem;
+  --spacing-space-lg: 1.5rem;
+  --spacing-space-xl: 2rem;
+  --spacing-space-2xl: 3rem;
+  --spacing-gutter: 1rem;
+  --spacing-gutter-desktop: 1.5rem;
+
+  --text-body-sm: 12px;
+  --text-body-sm--line-height: 16px;
+  --text-body-sm--letter-spacing: 0.01em;
+  --text-body-md: 14px;
+  --text-body-md--line-height: 20px;
+  --text-body-lg: 16px;
+  --text-body-lg--line-height: 24px;
+  --text-label-sm: 11px;
+  --text-label-sm--line-height: 14px;
+  --text-label-sm--letter-spacing: 0.05em;
+  --text-label-sm--font-weight: 600;
+  --text-label-md: 12px;
+  --text-label-md--line-height: 16px;
+  --text-label-md--letter-spacing: 0.04em;
+  --text-label-md--font-weight: 600;
+  --text-code-num: 13px;
+  --text-code-num--line-height: 18px;
+  --text-code-num--letter-spacing: -0.01em;
+  --text-code-num--font-weight: 500;
+  --text-title-md: 16px;
+  --text-title-md--line-height: 24px;
+  --text-title-md--font-weight: 600;
+  --text-headline-sm: 20px;
+  --text-headline-sm--line-height: 28px;
+  --text-headline-sm--font-weight: 600;
+  --text-headline-lg: 32px;
+  --text-headline-lg--line-height: 40px;
+  --text-headline-lg--letter-spacing: -0.015em;
+  --text-headline-lg--font-weight: 600;
+  --text-display-lg: 40px;
+  --text-display-lg--line-height: 48px;
+  --text-display-lg--letter-spacing: -0.02em;
+  --text-display-lg--font-weight: 700;
+}
+
+@layer base {
+  html,
+  body {
+    margin: 0;
+    padding: 0;
+  }
+  body {
+    @apply bg-surface text-on-surface text-body-md antialiased;
+    overscroll-behavior: none;
+  }
+  :focus-visible {
+    @apply outline-2 outline-offset-2 outline-primary;
+  }
+}
+
+.material-symbols-outlined {
+  font-family: "Material Symbols Outlined";
+  font-weight: normal;
+  font-style: normal;
+  line-height: 1;
+  letter-spacing: normal;
+  text-transform: none;
+  display: inline-block;
+  white-space: nowrap;
+  direction: ltr;
+  font-feature-settings: "liga";
+  -webkit-font-smoothing: antialiased;
+  user-select: none;
+}
+
+.icon-fill {
+  font-variation-settings: "FILL" 1;
+}
+
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}
