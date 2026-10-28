@@ -1,13 +1,14 @@
 import { useState, type FormEvent } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { Button, Card, EmptyState, Field, Icon, inputClass, PageHeader } from "../components/ui";
+import { ActionHint } from "../components/tx";
 import { useDerived, useStore } from "../data/store";
 import type { Priority } from "../domain/types";
 
 export function ReportFault() {
   const navigate = useNavigate();
   const [params] = useSearchParams();
-  const { chain, actor, readOnly, actions } = useStore();
+  const { chain, actor, readOnly, mode, actions } = useStore();
   const { points, pointMeta } = useDerived();
   const [pointId, setPointId] = useState(params.get("point") ?? "");
   const [summary, setSummary] = useState("");
@@ -26,7 +27,11 @@ export function ReportFault() {
       <>
         <PageHeader title="Report a fault" description="Authorised community reporters can open a maintenance job for a registered water point." />
         <EmptyState icon="lock" title={readOnly ? "Read-only testnet view" : "Only authorised reporters can report faults"}>
-          {readOnly ? "Switch to demo data to try reporting a fault." : "Switch to a reporter (for example Amina Garba) using the role selector in the header."}
+          {readOnly
+            ? "Connect Freighter with an account the coordinator has authorised as a reporter, or switch to demo data."
+            : mode === "testnet"
+              ? "The connected account is not an authorised reporter on this contract. Ask the coordinator to authorise it, or select a reporter account in Freighter."
+              : "Switch to a reporter (for example Amina Garba) using the role selector in the header."}
         </EmptyState>
       </>
     );
@@ -100,6 +105,7 @@ export function ReportFault() {
               Submit report
             </Button>
           </div>
+          <ActionHint />
         </form>
       </Card>
     </>

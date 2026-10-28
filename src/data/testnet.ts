@@ -1,10 +1,13 @@
-// Read-only loader for the shared testnet deployment. No wallet needed: read
-// calls are simulated, never submitted. Off-chain records are not available
-// here, so the UI shows fingerprints instead of descriptions.
+// Loader and writer for the testnet deployment. Reads are simulated and need
+// no wallet. Writes are signed in Freighter (see wallet.ts) and submitted.
+// Off-chain records are not on-chain, so the UI shows fingerprints unless this
+// browser created the record (see records.ts).
 
 import { contract } from "@stellar/stellar-sdk";
+import { messageForCode } from "../domain/errors";
 import { bytesToHex } from "../domain/hash";
 import { TESTNET } from "./config";
+import { WalletError } from "./wallet";
 import type {
   Address,
   AuditEntry,
@@ -20,7 +23,7 @@ import type {
 
 
 /** Synthetic role accounts from docs/TESTNET.md in the contract repo. */
-const KNOWN_ACCOUNTS: Person[] = [
+export const KNOWN_ACCOUNTS: Person[] = [
   { address: "GAVHHQY6RP2VDVLJA2JQGS2ZCIUYWBEZK6P5J64F5VSHSEHXZTM6IXM5", name: "Testnet coordinator", role: "coordinator", title: "Synthetic admin account" },
   { address: "GBA3CLHHBT6454VSCZZQ5AQ4P6K453K3AJLHOFOEBH4VVBJOUK7MSS7H", name: "Testnet reporter", role: "reporter", title: "Synthetic reporter account" },
   { address: "GDPTFRPXBAXJXDUVXIAK3TEWBMW26MN4CKXFJYSOGJ4U477YMVCYCWPA", name: "Testnet technician", role: "technician", title: "Synthetic technician account" },
@@ -72,6 +75,8 @@ interface WaterUptimeClient {
   get_water_point(a: { water_point_id: Buffer | Uint8Array }): Promise<Call<Result<RawWaterPoint>>>;
 }
 
+type Signer = (xdr: string, address: string) => Promise<{ signedTxXdr: string; signerAddress: string }>;
+
 const hexOrNull = (b: Bytes | null | undefined): Hex32 | null => (b ? bytesToHex(b) : null);
 const hexToBytes = (hex: string) => new Uint8Array(hex.match(/../g)!.map((x) => parseInt(x, 16)));
 
@@ -102,7 +107,14 @@ function client(): Promise<WaterUptimeClient> {
   return clientPromise;
 }
 
-export async function loadTestnet(): Promise<{ chain: ChainState; offchain: OffchainState }> {
+export interface LoadOptions {
+  /** Water points this browser knows about, e.g. ones it registered. */
+  waterPointIds?: Hex32[];
+  /** Extra accounts to check for reporter rights, e.g. the connected wallet. */
+  accounts?: Address[];
+}
+
+export async function loadTestnet(opts: LoadOptions = {}): Promise<{ chain: ChainState; offchain: OffchainState }> {
   const c = await client();
   const [admin, count] = await Promise.all([c.get_admin(), c.job_count()]);
   const total = Number(count.result);
@@ -132,7 +144,7 @@ export async function loadTestnet(): Promise<{ chain: ChainState; offchain: Offc
 
   // Water points are not enumerable on-chain (see contract issue #4), so load
   // the ones referenced by jobs.
-  const pointIds = [...new Set(Object.values(jobs).map((j) => j.waterPointId))];
+  const pointIds = [...new Set([...Object.values(jobs).map((j) => j.waterPointId), ...(opts.waterPointIds ?? [])])];
   const pointResults = await Promise.all(
     pointIds.map((id) => c.get_water_point({ water_point_id: hexToBytes(id) })),
   );
@@ -150,8 +162,9 @@ export async function loadTestnet(): Promise<{ chain: ChainState; offchain: Offc
     };
   }
 
+  const candidates = [...new Set([...KNOWN_ACCOUNTS.map((p) => p.address), ...(opts.accounts ?? [])])];
   const reporterChecks = await Promise.all(
-    KNOWN_ACCOUNTS.map(async (p) => ((await c.is_reporter({ reporter: p.address })).result ? p.address : null)),
+    candidates.map(async (a) => ((await c.is_reporter({ reporter: a })).result ? a : null)),
   );
 
   return {
@@ -168,4 +181,101 @@ export async function loadTestnet(): Promise<{ chain: ChainState; offchain: Offc
       records: {},
     },
   };
+}
+
+// ---- Writes ----
+
+/** Contract methods the app can call, with the SDK's argument shapes. */
+export type WriteCall =
+  | { method: "report_fault"; args: { reporter: Address; water_point_id: Hex32; fault_reference: Hex32 } }
+  | { method: "assign_job"; args: { job_id: number; technician: Address; verifier: Address } }
+  | { method: "submit_repair"; args: { technician: Address; job_id: number; repair_reference: Hex32 } }
+  | { method: "verify_repair"; args: { verifier: Address; job_id: number; verification_reference: Hex32; approved: boolean } }
+  | { method: "close_job"; args: { job_id: number } }
+  | { method: "cancel_job"; args: { job_id: number; reason_reference: Hex32 } }
+  | { method: "register_water_point"; args: { water_point_id: Hex32; metadata_hash: Hex32 } }
+  | { method: "set_water_point_active"; args: { water_point_id: Hex32; active: boolean } };
+
+export interface Receipt {
+  hash: string;
+  /** Decoded return value, e.g. the new job ID from report_fault. */
+  value: unknown;
+}
+
+/** Convert app-side values (hex strings, numbers) to the SDK's types. */
+function toSdkArgs(args: Record<string, unknown>): Record<string, unknown> {
+  return Object.fromEntries(
+    Object.entries(args).map(([k, v]) => {
+      if (k === "job_id") return [k, BigInt(v as number)];
+      if (typeof v === "string" && /^[0-9a-f]{64}$/.test(v)) return [k, hexToBytes(v)];
+      return [k, v];
+    }),
+  );
+}
+
+/** Pull a contract error code out of a simulation or submission error. */
+export function contractErrorCode(text: string): number | null {
+  const m = /Error\(Contract, #(\d+)\)/.exec(text);
+  return m ? Number(m[1]) : null;
+}
+
+export class ChainError extends Error {}
+
+function failure(text: string): Error {
+  const code = contractErrorCode(text);
+  return code !== null ? new ChainError(messageForCode(code)) : new ChainError(text.split("\n")[0] || "The transaction failed.");
+}
+
+/**
+ * Simulate, sign in the wallet, submit and wait for the transaction to be
+ * confirmed in a ledger. Throws ChainError with a plain-language message.
+ * The SDK signs as the source account, which also authorises the contract's
+ * `require_auth` for that address; no separate auth-entry signature is needed.
+ */
+export async function invoke(
+  call: WriteCall,
+  address: Address,
+  sign: Signer,
+  onStage?: (stage: "signing" | "confirming") => void,
+): Promise<Receipt> {
+  const c = await contract.Client.from({
+    contractId: TESTNET.contractId,
+    networkPassphrase: TESTNET.networkPassphrase,
+    rpcUrl: TESTNET.rpcUrl,
+    publicKey: address,
+    signTransaction: (xdr: string) => sign(xdr, address),
+  });
+  const method = (c as unknown as Record<string, (a: unknown) => Promise<contract.AssembledTransaction<unknown>>>)[call.method]!;
+  let tx: contract.AssembledTransaction<unknown>;
+  try {
+    tx = await method(toSdkArgs(call.args));
+  } catch (e) {
+    throw failure(e instanceof Error ? e.message : String(e));
+  }
+  const sim = tx.simulation as { error?: string } | undefined;
+  if (sim?.error) throw failure(sim.error);
+
+  let sent: contract.SentTransaction<unknown>;
+  try {
+    onStage?.("signing");
+    await tx.sign();
+    onStage?.("confirming");
+    // Submits, then polls until the transaction is in a ledger.
+    sent = await tx.send();
+  } catch (e) {
+    // The wallet's own errors are already readable.
+    if (e instanceof WalletError) throw e;
+    throw failure(e instanceof Error ? e.message : String(e));
+  }
+  const hash =
+    sent.sendTransactionResponse?.hash ??
+    (sent.getTransactionResponse as { txHash?: string } | undefined)?.txHash ??
+    "";
+  const result = sent.result;
+  if (result && typeof result === "object" && "isOk" in result) {
+    const r = result as Result<unknown>;
+    if (!r.isOk()) throw new ChainError(`The contract rejected transaction ${hash}.`);
+    return { hash, value: r.unwrap() };
+  }
+  return { hash, value: result };
 }

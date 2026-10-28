@@ -5,3 +5,5 @@ export const TESTNET = {
   rpcUrl: import.meta.env.VITE_RPC_URL ?? "https://soroban-testnet.stellar.org",
   networkPassphrase: "Test SDF Network ; September 2015",
 };
+
+export const explorerTx = (hash: string) => `https://stellar.expert/explorer/testnet/tx/${hash}`;

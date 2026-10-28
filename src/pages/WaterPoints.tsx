@@ -2,6 +2,7 @@ import { useMemo, useState, type FormEvent } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { JobLink, useJobLabel } from "../components/job";
 import { Button, Card, EmptyState, Field, Fingerprint, Icon, inputClass, Kpi, PageHeader, PersonLabel, StatusBadge, timeAgo } from "../components/ui";
+import { ActionHint } from "../components/tx";
 import { useDerived, useStore } from "../data/store";
 import type { Hex32, WaterPoint } from "../domain/types";
 
@@ -262,6 +263,7 @@ function PointDetail({ point, onClose }: { point: WaterPoint; onClose: () => voi
           </Button>
         )}
       </div>
+      {(canReport || isCoordinator) && <ActionHint />}
     </Card>
   );
 }
@@ -316,6 +318,7 @@ function RegisterForm({ onDone }: { onDone: () => void }) {
             Cancel
           </Button>
         </div>
+        <ActionHint />
       </form>
     </Card>
   );

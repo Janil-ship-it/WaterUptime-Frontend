@@ -2,6 +2,7 @@ import { useState, type FormEvent } from "react";
 import { useSearchParams } from "react-router-dom";
 import { AuditTimeline, JobLink, useJobLabel } from "../components/job";
 import { Button, Card, EmptyState, Field, Fingerprint, Icon, inputClass, Kpi, PageHeader, PersonLabel, PriorityBadge, SectionTitle, timeAgo } from "../components/ui";
+import { ActionHint, useSwitchHint } from "../components/tx";
 import { useDerived, useStore } from "../data/store";
 import type { MaintenanceJob } from "../domain/types";
 
@@ -137,6 +138,7 @@ function Review({ job }: { job: MaintenanceJob }) {
   const fault = record(job.faultReference);
   const repair = record(job.repairReference);
   const isAssigned = !readOnly && actor?.address === job.verifier;
+  const switchHint = useSwitchHint();
   const history = chain.history[job.id] ?? [];
   const submittedAt = [...history].reverse().find((e) => e.action === "RepairSubmitted")?.timestamp;
 
@@ -188,8 +190,8 @@ function Review({ job }: { job: MaintenanceJob }) {
         <p className="flex items-start gap-space-xs rounded-lg bg-surface-container-lowest p-space-sm text-body-sm text-on-surface-variant">
           <Icon name="lock" className="text-base text-secondary" />
           {readOnly
-            ? "Read-only testnet view."
-            : `Only the assigned verifier, ${person(job.verifier)?.name ?? "unknown"}, can decide on this repair. Switch roles in the header to act as them.`}
+            ? "Read-only testnet view. Connect Freighter as the assigned verifier to decide on this repair."
+            : `Only the assigned verifier, ${person(job.verifier)?.name ?? "unknown"}, can decide on this repair. ${switchHint}`}
         </p>
       )}
 
@@ -305,6 +307,7 @@ function Decision({ job }: { job: MaintenanceJob }) {
           </Button>
         </form>
       </div>
+      <ActionHint />
     </section>
   );
 }

@@ -1,6 +1,7 @@
 import { Link, useNavigate } from "react-router-dom";
 import { AuditTimeline, JobLink, useJobLabel } from "../components/job";
 import { Button, Card, EmptyState, Kpi, PageHeader, PersonLabel, PriorityBadge, SectionTitle, StatusBadge, STATUS_LABEL, statusDot, timeAgo } from "../components/ui";
+import { TransactionLog } from "../components/tx";
 import { useDerived, useStore } from "../data/store";
 import type { JobStatus } from "../domain/types";
 import { isTerminal, nextStep } from "../domain/workflow";
@@ -47,7 +48,7 @@ export function Overview() {
           label="Water points"
           value={points.length}
           icon="water_drop"
-          hint={mode === "testnet" ? "Referenced by on-chain jobs" : `${active} active · ${withOpenJob} with an open job`}
+          hint={mode === "testnet" ? "Referenced by on-chain jobs or registered here" : `${active} active · ${withOpenJob} with an open job`}
         />
         <Kpi label="New faults" value={count("Reported")} icon="warning" tone="text-error" accent="bg-error" hint="Waiting for coordinator triage" />
         <Kpi
@@ -163,6 +164,7 @@ export function Overview() {
           <Card>
             <AuditTimeline entries={feed} />
           </Card>
+          {mode === "testnet" && <TransactionLog />}
         </div>
       </div>
     </>
