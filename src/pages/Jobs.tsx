@@ -2,6 +2,7 @@ import { useState, type FormEvent } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { AuditTimeline, LifecycleStepper, useJobLabel } from "../components/job";
 import { Button, Card, EmptyState, Field, Fingerprint, Icon, inputClass, PageHeader, PersonLabel, PriorityBadge, SectionTitle, StatusBadge, STATUS_LABEL, timeAgo } from "../components/ui";
+import { ActionHint, useSwitchHint } from "../components/tx";
 import { useDerived, useStore } from "../data/store";
 import type { JobStatus, MaintenanceJob } from "../domain/types";
 import { canCancel, canReassign, canSubmit, nextStep } from "../domain/workflow";
@@ -214,11 +215,12 @@ function JobDetail({ job }: { job: MaintenanceJob }) {
 function JobActions({ job, admin }: { job: MaintenanceJob; admin: string }) {
   const { actor, readOnly } = useStore();
   const { person } = useDerived();
+  const switchHint = useSwitchHint();
 
   if (readOnly) {
     return (
       <Notice icon="visibility">
-        Read-only testnet view. Signing actions with a wallet is planned; use demo mode to try the workflow.
+        Read-only testnet view. Connect Freighter to sign the actions your account is allowed to take, or use demo data to try every role.
       </Notice>
     );
   }
@@ -250,7 +252,7 @@ function JobActions({ job, admin }: { job: MaintenanceJob; admin: string }) {
     return (
       <Notice icon="hourglass_top">
         {next.step
-          ? `Waiting on ${who?.name ?? "the assigned person"} (${who?.title.toLowerCase() ?? "role"}). Switch roles in the header to act as them.`
+          ? `Waiting on ${who?.name ?? "the assigned person"} (${who?.title.toLowerCase() ?? "role"}). ${switchHint}`
           : "This job is finished. Its history stays on record."}
       </Notice>
     );
@@ -267,12 +269,56 @@ function Notice({ icon, children }: { icon: string; children: React.ReactNode })
   );
 }
 
+const OTHER = "other";
+const isAccount = (a: string) => /^G[A-Z2-7]{55}$/.test(a);
+
+/** Pick a known participant, or (testnet) paste any account address. */
+function AccountSelect({ label, role, value, onChange }: { label: string; role: "technician" | "verifier"; value: string; onChange(v: string): void }) {
+  const { mode } = useStore();
+  const { peopleByRole } = useDerived();
+  const known = peopleByRole(role);
+  const [other, setOther] = useState(value !== "" && !known.some((p) => p.address === value));
+  return (
+    <Field label={label}>
+      <select
+        required
+        className={inputClass}
+        value={other ? OTHER : value}
+        onChange={(e) => {
+          const v = e.target.value;
+          setOther(v === OTHER);
+          onChange(v === OTHER ? "" : v);
+        }}
+      >
+        <option value="">Choose a {role}…</option>
+        {known.map((p) => (
+          <option key={p.address} value={p.address}>
+            {p.name}
+          </option>
+        ))}
+        {mode === "testnet" && <option value={OTHER}>Other account address…</option>}
+      </select>
+      {other && (
+        <input
+          required
+          aria-label={`${label} account address`}
+          className={`${inputClass} mt-space-xs tabular`}
+          placeholder="G…"
+          value={value}
+          onChange={(e) => onChange(e.target.value.trim())}
+          pattern="G[A-Z2-7]{55}"
+        />
+      )}
+    </Field>
+  );
+}
+
 function AssignPanel({ job }: { job: MaintenanceJob }) {
   const { actions } = useStore();
-  const { peopleByRole } = useDerived();
   const [tech, setTech] = useState(job.technician ?? "");
   const [ver, setVer] = useState(job.verifier ?? "");
   const same = tech !== "" && tech === ver;
+  const valid = isAccount(tech) && isAccount(ver);
   const reassign = job.status !== "Reported";
 
   const submit = (e: FormEvent) => {
@@ -284,33 +330,16 @@ function AssignPanel({ job }: { job: MaintenanceJob }) {
     <form onSubmit={submit} className="flex flex-col gap-space-sm">
       <h3 className="text-label-md uppercase text-on-surface">{reassign ? "Reassign personnel" : "Assign personnel"}</h3>
       <div className="grid grid-cols-1 gap-space-sm sm:grid-cols-2">
-        <Field label="Technician">
-          <select required className={inputClass} value={tech} onChange={(e) => setTech(e.target.value)}>
-            <option value="">Choose a technician…</option>
-            {peopleByRole("technician").map((p) => (
-              <option key={p.address} value={p.address}>
-                {p.name}
-              </option>
-            ))}
-          </select>
-        </Field>
-        <Field label="Independent verifier">
-          <select required className={inputClass} value={ver} onChange={(e) => setVer(e.target.value)}>
-            <option value="">Choose a verifier…</option>
-            {peopleByRole("verifier").map((p) => (
-              <option key={p.address} value={p.address}>
-                {p.name}
-              </option>
-            ))}
-          </select>
-        </Field>
+        <AccountSelect label="Technician" role="technician" value={tech} onChange={setTech} />
+        <AccountSelect label="Independent verifier" role="verifier" value={ver} onChange={setVer} />
       </div>
       {same && <p className="text-body-sm text-error">The technician and the verifier must be different people.</p>}
       <div>
-        <Button type="submit" tone="primary" icon="assignment_ind" disabled={!tech || !ver || same}>
+        <Button type="submit" tone="primary" icon="assignment_ind" disabled={!valid || same}>
           {reassign ? "Reassign" : "Assign job"}
         </Button>
       </div>
+      <ActionHint />
     </form>
   );
 }
@@ -342,6 +371,7 @@ function SubmitPanel({ job }: { job: MaintenanceJob }) {
           Submit for verification
         </Button>
       </div>
+      <ActionHint />
     </form>
   );
 }
@@ -357,6 +387,7 @@ function ClosePanel({ job }: { job: MaintenanceJob }) {
           Close job
         </Button>
       </div>
+      <ActionHint />
     </div>
   );
 }
@@ -395,6 +426,7 @@ function CancelPanel({ job }: { job: MaintenanceJob }) {
           Keep job
         </Button>
       </div>
+      <ActionHint />
     </form>
   );
 }

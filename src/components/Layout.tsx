@@ -4,6 +4,7 @@ import { TESTNET } from "../data/config";
 import { version } from "../../package.json";
 import { shortAddress } from "../domain/hash";
 import type { Role } from "../domain/types";
+import { PendingOverlay, TxLink, WalletControl } from "./tx";
 import { Button, EmptyState, Icon } from "./ui";
 
 const NAV = [
@@ -48,15 +49,8 @@ function ModeSwitch() {
 }
 
 function ActorSwitch() {
-  const { actor, setActor, offchain, readOnly } = useStore();
-  if (readOnly) {
-    return (
-      <span className="hidden items-center gap-space-xs rounded-lg bg-surface-container px-space-sm py-space-xs text-label-sm text-on-surface-variant sm:inline-flex">
-        <Icon name="visibility" className="text-base text-secondary" />
-        Read-only
-      </span>
-    );
-  }
+  const { actor, setActor, offchain, mode } = useStore();
+  if (mode === "testnet") return <WalletControl />;
   const people = Object.values(offchain.people);
   return (
     <label className="flex items-center gap-space-xs rounded-lg border-t-2 border-primary bg-surface-container px-space-sm py-space-xxs">
@@ -202,7 +196,7 @@ function BottomNav() {
 }
 
 function PrototypeBanner() {
-  const { mode } = useStore();
+  const { mode, wallet } = useStore();
   return (
     <div className="mb-space-lg flex flex-col gap-space-sm rounded-lg bg-surface-container-high px-space-md py-space-sm text-body-sm text-on-surface-variant sm:flex-row sm:items-center sm:justify-between">
       <span className="flex items-start gap-space-xs">
@@ -212,10 +206,15 @@ function PrototypeBanner() {
             <strong className="text-on-surface">Prototype with synthetic demo data.</strong> All people and facilities are fictional. Actions run
             the contract's rules in your browser; nothing is sent on-chain.
           </span>
+        ) : wallet.address ? (
+          <span>
+            <strong className="text-on-surface">Live Stellar testnet. Actions are real transactions</strong> signed in your Freighter wallet and
+            confirmed on-chain. Only fingerprints go on-chain; descriptions you write stay in this browser. Testnet only, never real funds.
+          </span>
         ) : (
           <span>
             <strong className="text-on-surface">Live Stellar testnet, read-only.</strong> On-chain state only; descriptions and evidence live
-            off-chain and are shown as fingerprints. Wallet signing is not built yet.
+            off-chain and are shown as fingerprints. Connect Freighter (set to Testnet) to sign actions your account is allowed to take.
           </span>
         )}
       </span>
@@ -239,7 +238,14 @@ function Notices() {
           }`}
         >
           <Icon name={n.tone === "error" ? "error" : "check_circle"} className={n.tone === "error" ? "" : "text-primary"} />
-          <span className="flex-1">{n.text}</span>
+          <span className="flex flex-1 flex-col gap-space-xxs">
+            <span>{n.text}</span>
+            {n.txHash && (
+              <span className="text-body-sm">
+                <TxLink hash={n.txHash} className="text-primary" /> · view on Stellar Expert
+              </span>
+            )}
+          </span>
           <button type="button" aria-label="Dismiss" onClick={() => dismiss(n.id)} className="opacity-70 hover:opacity-100">
             <Icon name="close" className="text-base" />
           </button>
@@ -289,6 +295,7 @@ export function Layout() {
       </main>
       <BottomNav />
       <Notices />
+      <PendingOverlay />
     </div>
   );
 }
